@@ -3,7 +3,40 @@ from PIL import Image, ImageTk
 from tkinter import messagebox
 import customtkinter as ctk
 import sqlite3 as db
+from threading import *
 
+# Initialize database and create user table if it doesn't exist
+def initialize_database():
+    try:
+        conn = db.connect("database.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+                CREATE TABLE IF NOT EXISTS user(
+                    username TEXT PRIMARY KEY,
+                    password TEXT
+                )
+            """
+        )
+        conn.commit()
+    except db.Error as e:
+        messagebox.showerror("Database Error", str(e))
+    finally:
+        conn.close()
+        
+# Thread for opening register frame because it takes time to load
+def threading():
+    main_Frame.destroy()
+    t1 = Thread(target=open_register)
+    t1.start()
+
+    
+# Thread for opening login frame because it takes time to load
+def threading2():
+    main_Frame.destroy()
+    t2= Thread(target=create_login_frame)
+    t2.start()
+            
 # main window
 root = Tk()
 root.title("British Gurkhas recruitment process")
@@ -22,12 +55,41 @@ root.config(bg=background)
 root.resizable(False, False)
 root.geometry("1250x700+210+100")
 
-def back():
-    global main_Frame
-    main_Frame.destroy()
-    create_login_frame()
+# show message box when closing the window
+def on_closing():
+    if messagebox.askokcancel("Quit", "Do you want to quit?"):
+        root.destroy()
+        
+root.protocol("WM_DELETE_WINDOW", on_closing) # call on_closing function when closing the window
 
+# Save Login Information
+def save_login():
+    # global username, password
+    uname = username.get()
+    pwd = password.get()
+
+    if not uname or not pwd:
+        messagebox.showerror("Login Failed", "Username and Password cannot be empty!")
+        return
+
+    try:
+        conn = db.connect("database.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM user WHERE username = ? AND password = ?", (uname, pwd))
+        row = cursor.fetchone()
+        if row:
+            messagebox.showinfo("Login Success", "Login Successful!")
+            open_phase1()
+        else:
+            messagebox.showerror("Login Failed", "Invalid Username or Password!")
+    except db.Error as e:
+        messagebox.showerror("Database Error", str(e))
+    finally:
+        conn.close()
+    
+# Login Frame
 def create_login_frame():
+    
     global main_Frame, username, password
     main_Frame = ctk.CTkFrame(master=root, width=555, height=431, corner_radius=30)
     main_Frame.grid(row=0, column=1, padx=350, pady=150)
@@ -54,8 +116,8 @@ def create_login_frame():
                                hover_color=frame_clr)
     forgot_Btn.place(x=40, y=360)
     
-    new_Account_Btn = ctk.CTkButton(main_Frame, text="Don’t have Account?", font=font2, text_color=background,
-                                    fg_color=frame_clr, command=open_register, hover_color=frame_clr)
+    new_Account_Btn = ctk.CTkButton(main_Frame, text="Don't have Account?", font=font2, text_color=background,
+                                    fg_color=frame_clr, command=threading, hover_color=frame_clr)
     new_Account_Btn.place(x=350, y=360)
     
     try:
@@ -75,9 +137,10 @@ def create_login_frame():
         password_icon.place(x=470, y=218)
     except Exception as e:
         messagebox.showerror("Image Error", str(e))
-
+        
+# Register Frame
 def open_register():
-    global main_Frame
+    global main_Frame, name_entry, email_entry, dob_entry, password_entry, number_entry, repassword_entry
     main_Frame.destroy()
     
     main_Frame = ctk.CTkFrame(root, width=724, height=587, corner_radius=30)
@@ -138,7 +201,7 @@ def open_register():
                                width=134,
                                height=59,
                                font=font1,
-                               command=lambda: messagebox.showinfo("Sign Up", "Sign Up Successful!"),
+                               command= save_registration,
                                fg_color="#314C3B",
                                hover_color=background)
 
@@ -150,10 +213,30 @@ def open_register():
                                          text_color="black",
                                          fg_color=frame_clr,
                                          hover_color=frame_clr,
-                                         command=back)
+                                         command=threading2)
 
     already_have_account.place(x=258, y=486)
+
+def save_registration():
+    try:
+        global name_entry, email_entry, dob_entry, password_entry, number_entry, repassword_entry
+        conn = db.connect("database.db")
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO user(username, password) VALUES(?, ?)", (email_entry.get(), password_entry.get()))
+        conn.commit()
+        messagebox.showinfo("Registration", "Registration Successful!")
+    except db.Error as e:
+        messagebox.showerror("Database Error", str(e))
+    finally:
+        conn.close()
+    name_entry.delete(0, END)
+    email_entry.delete(0, END)
+    dob_entry.delete(0, END)
+    password_entry.delete(0, END)
+    number_entry.delete(0, END)
+    repassword_entry.delete(0, END)
     
+# Phase 1    
 def open_phase1():
     global main_Frame
     
@@ -223,49 +306,8 @@ def open_phase1():
     next_btn = ctk.CTkButton(root, text="Next", width=120, height=40, corner_radius=10, font=font2, fg_color="#314C3B", bg_color=frame_clr)
     next_btn.place(x=573, y=725)
     
-    
 
-
-# show message box when closing the window
-def on_closing():
-    if messagebox.askokcancel("Quit", "Do you want to quit?"):
-        root.destroy()
-        
-root.protocol("WM_DELETE_WINDOW", on_closing) # call on_closing function when closing the window
-
-try:
-    conn = db.connect("database.db")
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-            CREATE TABLE IF NOT EXISTS user(
-                username TEXT PRIMARY KEY,
-                password TEXT
-            )
-        """
-    )
-    conn.commit()
-except db.Error as e:
-    messagebox.showerror("Database Error", str(e))
-finally:
-    conn.close()
-
-def save_login():
-    try:
-        global username, password
-        conn = db.connect("database.db")
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO user(username, password) VALUES(?, ?)",
-            (username.get(), password.get())
-        )
-        conn.commit()
-    except db.Error as e:
-        messagebox.showerror("Database Error", str(e))
-    finally:
-        conn.close()
-    username.delete(0, END)
-    password.delete(0, END)
-
+# Initialize database and open Login Frame on Startup
+# initialize_database()
 create_login_frame() # create login frame
 root.mainloop()
